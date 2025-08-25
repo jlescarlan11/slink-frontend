@@ -137,7 +137,7 @@ const AboutPage: React.FC = () => {
             <CardTitle className="card-h2">
               Built with Modern Technology
             </CardTitle>
-            <CardDescription className="text-sm lg:text-lg">
+            <CardDescription className="text-sm lg:text-lg max-w-2xl mx-auto">
               Slink is powered by a robust technology stack designed for
               performance, scalability, and reliability.
             </CardDescription>
@@ -181,7 +181,7 @@ const AboutPage: React.FC = () => {
         <Card className="bg-gradient-to-r from-primary to-primary/80 border-0 shadow-lg">
           <CardContent className="p-8 text-center text-primary-foreground">
             <h2>Ready to Get Started?</h2>
-            <p className="!text-primary-foreground/80">
+            <p className="!text-primary-foreground/80 max-w-2xl mx-auto">
               Join thousands of users who trust Slink for their link management
               needs.
             </p>
@@ -189,9 +189,7 @@ const AboutPage: React.FC = () => {
               <Button size="lg" variant="secondary">
                 Start Shortening
               </Button>
-              <Button size="lg" className="">
-                View Pricing
-              </Button>
+              <Button size="lg">View Pricing</Button>
             </div>
           </CardContent>
         </Card>
