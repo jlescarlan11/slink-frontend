@@ -19,27 +19,9 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { motion } from "motion/react";
 
 const Home = () => {
-  const [urlInput, setUrlInput] = useState("");
-  const [shortenedUrl, setShortenedUrl] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const handleShortenUrl = () => {
-    if (urlInput.trim()) {
-      // Simulate URL shortening
-      const randomId = Math.random().toString(36).substring(7);
-      setShortenedUrl(`slink.ly/${randomId}`);
-    }
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(shortenedUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const features = [
     {
       icon: <Zap className="w-6 h-6" />,
@@ -143,7 +125,16 @@ const Home = () => {
   return (
     <div className="section-spacing">
       {/* Hero Section */}
-      <div className="text-center space-y-8 mb-20">
+      <motion.div
+        initial={{ opacity: 0, y: -80 }}
+        whileInView={{
+          opacity: 1,
+          y: 0,
+        }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+        className="text-center space-y-8 mb-20"
+      >
         <div className="space-y-6">
           <h1 className="max-w-4xl mx-auto">
             Shorten URLs, <span className="text-primary">Amplify Results</span>
@@ -156,14 +147,16 @@ const Home = () => {
 
         {/* Main Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
-          <Button size="lg" className="flex-1">
+          <Button size="lg">
             <Link2 className="w-5 h-5 mr-2" />
             Shorten Link
           </Button>
-          <Button size="lg" variant="outline" className="flex-1">
-            <BarChart3 className="w-5 h-5 mr-2" />
-            Manage Links
-          </Button>
+          <div>
+            <Button size="lg" variant="outline">
+              <BarChart3 className="w-5 h-5 mr-2" />
+              Manage Links
+            </Button>
+          </div>
         </div>
 
         <div className="flex items-center justify-center gap-6 mt-8 text-sm text-muted-foreground">
@@ -180,10 +173,19 @@ const Home = () => {
             Real-time Analytics
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Features Section */}
-      <div className="space-y-12 mb-20">
+      <motion.div
+        initial={{ opacity: 0, y: -80 }}
+        whileInView={{
+          opacity: 1,
+          y: 0,
+        }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+        className="space-y-12 mb-20"
+      >
         <div className="text-center space-y-4">
           <h2 className="card-h2">Why Choose Slink?</h2>
           <p className="max-w-2xl mx-auto">
@@ -207,10 +209,19 @@ const Home = () => {
             </Card>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Social Proof */}
-      <div className="text-center mb-20">
+      <motion.div
+        initial={{ opacity: 0, y: -80 }}
+        whileInView={{
+          opacity: 1,
+          y: 0,
+        }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+        className="text-center mb-20"
+      >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           <div>
             <div className="card-h3 text-primary mb-2">10M+</div>
@@ -231,10 +242,19 @@ const Home = () => {
         </div>
 
         <p className="text-muted-foreground">Trusted by companies worldwide</p>
-      </div>
+      </motion.div>
 
       {/* Testimonials */}
-      <div className="space-y-12 mb-20">
+      <motion.div
+        initial={{ opacity: 0, y: -80 }}
+        whileInView={{
+          opacity: 1,
+          y: 0,
+        }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+        className="space-y-12 mb-20"
+      >
         <div className="text-center space-y-4">
           <h2 className="card-h2">What Our Users Say</h2>
           <p>See why thousands choose Slink for their link management needs.</p>
@@ -253,7 +273,7 @@ const Home = () => {
                   ))}
                 </div>
                 <blockquote className="text-sm mb-4">
-                  "{testimonial.content}"
+                  &ldquo;{testimonial.content}&rdquo;
                 </blockquote>
                 <div>
                   <div className="font-semibold text-sm">
@@ -267,10 +287,19 @@ const Home = () => {
             </Card>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Pricing */}
-      <div className="space-y-12 mb-20">
+      <motion.div
+        initial={{ opacity: 0, y: -80 }}
+        whileInView={{
+          opacity: 1,
+          y: 0,
+        }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+        className="space-y-12 mb-20"
+      >
         <div className="text-center space-y-4">
           <h2 className="card-h2">Simple, Transparent Pricing</h2>
           <p>
@@ -326,7 +355,7 @@ const Home = () => {
             </Card>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* CTA Section */}
       <Card className="bg-gradient-to-r from-primary to-primary/80 border-0 shadow-lg">
