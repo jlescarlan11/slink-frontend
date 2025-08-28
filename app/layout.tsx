@@ -3,6 +3,7 @@ import { Noto_Sans } from "next/font/google";
 import "./globals.css";
 import NavigationBar from "./_navigation_bar/NavigationBar";
 import Footer from "./Footer";
+import { Toaster } from "sonner";
 
 const notoSans = Noto_Sans({
   variable: "--font-noto-sans",
@@ -25,6 +26,7 @@ export default function RootLayout({
       <body
         className={`${notoSans.variable} antialiased min-h-screen flex flex-col`}
       >
+        <Toaster />
         <NavigationBar />
         <main className="flex-1 web-layout">{children}</main>
         <Footer></Footer>

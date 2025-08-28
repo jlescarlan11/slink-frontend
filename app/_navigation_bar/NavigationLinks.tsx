@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 const pages = [
-  ["home", "Home"],
+  ["", "Home"],
   ["about", "About"],
 ];
 
@@ -21,9 +21,11 @@ const NavigationLinks = ({ closeNav }: { closeNav: () => void }) => {
           <div className="w-0 group-hover:w-6 h-px bg-primary transition-all duration-300" />
         </Link>
       ))}
-      <Button size="lg" variant="outline">
-        SignUp
-      </Button>
+      <Link href="/register">
+        <Button size="lg" variant="outline">
+          SignUp
+        </Button>
+      </Link>
     </>
   );
 };
