@@ -1,19 +1,18 @@
+// pages/RegisterPage.tsx
 "use client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import axios from "axios";
-import { Loader2, UserPlus } from "lucide-react";
+import React, { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { UserPlus } from "lucide-react";
 import api from "../api/api";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { FormField } from "@/components/auth/FormField";
+import { AuthButton } from "@/components/auth/AuthButton";
+import { AuthFooter } from "@/components/auth/AuthFooter";
+import { useFormValidation } from "@/hooks/useFormValidation";
+import { handleAuthError } from "@/utils/errorHandlers";
 
-// Configuration
-const REGISTER_ENDPOINT = "/api/auth/public/register";
-
-// Zod Schema
 const registerFormSchema = z.object({
   username: z
     .string()
@@ -40,265 +39,100 @@ const registerFormSchema = z.object({
     ),
 });
 
-type RegisterFormData = z.infer<typeof registerFormSchema>;
-
-// Form field configuration
-const formFieldsConfig = [
+const formFields = [
   {
-    name: "username" as keyof RegisterFormData,
+    name: "username",
     label: "Username",
     type: "text",
     placeholder: "Enter your username",
   },
   {
-    name: "email" as keyof RegisterFormData,
+    name: "email",
     label: "Email",
     type: "email",
     placeholder: "Enter your email address",
   },
   {
-    name: "password" as keyof RegisterFormData,
+    name: "password",
     label: "Password",
     type: "password",
     placeholder: "Enter your password",
   },
-];
+] as const;
 
-// Simplified error types
-const API_ERRORS = {
-  409: "Username or email already exists.",
-  422: "Please check your input fields.",
-  500: "Something went wrong. Please try again later.",
-  NETWORK: "Unable to connect to server. Please check your connection.",
-} as const;
-
-// Unified validation function
-const validateField = (fieldName: keyof RegisterFormData, value: string) => {
-  try {
-    registerFormSchema.shape[fieldName].parse(value);
-    return null;
-  } catch (error) {
-    return error instanceof z.ZodError ? error.issues[0]?.message : null;
-  }
-};
-
-// Unified error handler
-const handleError = (
-  error: unknown,
-  setErrors: (errors: Partial<RegisterFormData>) => void
-) => {
-  if (error instanceof z.ZodError) {
-    // Handle validation errors
-    const fieldErrors: Partial<RegisterFormData> = {};
-    error.issues.forEach((issue) => {
-      if (issue.path.length > 0) {
-        fieldErrors[issue.path[0] as keyof RegisterFormData] = issue.message;
-      }
-    });
-    setErrors(fieldErrors);
-    toast.error("Validation Error", {
-      description: "Please check your input.",
-    });
-    return;
-  }
-
-  if (axios.isAxiosError(error)) {
-    const status = error.response?.status;
-    const apiErrors = error.response?.data?.errors;
-
-    // Handle field-specific API errors
-    if (status === 422 && apiErrors) {
-      const serverErrors: Partial<RegisterFormData> = {};
-      Object.entries(apiErrors).forEach(([field, messages]) => {
-        serverErrors[field as keyof RegisterFormData] = (
-          messages as string[]
-        )[0];
-      });
-      setErrors(serverErrors);
-    }
-
-    // Show appropriate toast message
-    const message =
-      status && status in API_ERRORS
-        ? API_ERRORS[status as keyof typeof API_ERRORS]
-        : !error.response
-        ? API_ERRORS.NETWORK
-        : API_ERRORS[500];
-
-    toast.error("Registration Failed", { description: message });
-    return;
-  }
-
-  // Fallback error
-  toast.error("Error", { description: API_ERRORS[500] });
-};
-
-// Simplified API call
-const registerUser = async (formData: RegisterFormData) => {
-  const response = await api.post(REGISTER_ENDPOINT, formData);
-  return response.data;
-};
-
-// Form Field Component
-const FormField = ({
-  config,
-  value,
-  onChange,
-  error,
-}: {
-  config: (typeof formFieldsConfig)[0];
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  error?: string;
-}) => (
-  <div className="space-y-2">
-    <Label
-      htmlFor={config.name}
-      className="text-sm font-medium text-foreground"
-    >
-      {config.label}
-      <span className="text-destructive ml-1">*</span>
-    </Label>
-    <Input
-      id={config.name}
-      name={config.name}
-      type={config.type}
-      value={value}
-      onChange={onChange}
-      placeholder={config.placeholder}
-      className={error ? "border-red-500 focus:border-red-500" : ""}
-      aria-invalid={!!error}
-    />
-    {error && <p className="text-xs text-red-500">{error}</p>}
-  </div>
-);
-
-// Custom Hook
-const useRegisterForm = () => {
+const RegisterPage = () => {
   const router = useRouter();
-  const [formData, setFormData] = useState<RegisterFormData>({
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const {
+    formData,
+    errors,
+    hasErrors,
+    handleFieldChange,
+    resetForm,
+    setErrors,
+  } = useFormValidation(registerFormSchema, {
     username: "",
     email: "",
     password: "",
   });
-  const [errors, setErrors] = useState<Partial<RegisterFormData>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleFieldChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { name, value } = e.target;
-      const fieldName = name as keyof RegisterFormData;
-
-      setFormData((prev) => ({ ...prev, [fieldName]: value }));
-
-      // Real-time validation
-      const fieldError = validateField(fieldName, value);
-      setErrors((prev) => ({ ...prev, [fieldName]: fieldError }));
-    },
-    []
-  );
-
-  const submitForm = useCallback(
+  const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
 
       try {
         const validatedData = registerFormSchema.parse(formData);
-        setErrors({});
         setIsSubmitting(true);
 
-        const response = await registerUser(validatedData);
+        await api.post("/api/auth/public/register", validatedData);
 
-        // Reset form and show success
-        setFormData({ username: "", email: "", password: "" });
+        resetForm();
         toast.success("Registration Successful!", {
-          description: `Welcome ${response.username}! Your account has been created.`,
+          description: "Your account has been created.",
         });
 
-        setTimeout(() => router.push("/login"), 100);
+        router.push("/login");
       } catch (error) {
-        handleError(error, setErrors);
+        handleAuthError(error, setErrors, "Registration Failed");
       } finally {
         setIsSubmitting(false);
       }
     },
-    [formData, router]
+    [formData, router, resetForm, setErrors]
   );
-
-  const hasErrors = useMemo(
-    () => Object.values(errors).some(Boolean),
-    [errors]
-  );
-
-  return {
-    formData,
-    errors,
-    isSubmitting,
-    hasErrors,
-    handleFieldChange,
-    submitForm,
-  };
-};
-
-// Main Component
-const RegisterPage = () => {
-  const {
-    formData,
-    errors,
-    isSubmitting,
-    hasErrors,
-    handleFieldChange,
-    submitForm,
-  } = useRegisterForm();
 
   return (
-    <div className="section-spacing flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground">Create Account</h1>
-          <p className="text-sm text-muted-foreground mt-2">
-            Sign up to get started
-          </p>
-        </div>
+    <AuthLayout title="Create Account" subtitle="Sign up to get started">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {formFields.map((field) => (
+          <FormField
+            key={field.name}
+            name={field.name}
+            label={field.label}
+            type={field.type}
+            placeholder={field.placeholder}
+            value={formData[field.name as keyof typeof formData]}
+            onChange={handleFieldChange}
+            error={errors[field.name as keyof typeof errors]}
+          />
+        ))}
 
-        <form onSubmit={submitForm} className="space-y-6">
-          {formFieldsConfig.map((config) => (
-            <FormField
-              key={config.name}
-              config={config}
-              value={formData[config.name]}
-              onChange={handleFieldChange}
-              error={errors[config.name]}
-            />
-          ))}
+        <AuthButton
+          isSubmitting={isSubmitting}
+          disabled={hasErrors}
+          loadingText="Signing Up..."
+          buttonText="Sign Up"
+          icon={UserPlus}
+        />
+      </form>
 
-          <Button
-            type="submit"
-            disabled={isSubmitting || hasErrors}
-            className="w-full"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                Creating Account...
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-4 h-4 mr-2" />
-                Create Account
-              </>
-            )}
-          </Button>
-        </form>
-
-        <div className="text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <a href="/login" className="text-primary hover:underline">
-            Sign in
-          </a>
-        </div>
-      </div>
-    </div>
+      <AuthFooter
+        text="Already have an account?"
+        linkText="Sign in"
+        linkHref="/login"
+      />
+    </AuthLayout>
   );
 };
 
