@@ -1,20 +1,19 @@
 "use client";
-import React, { useCallback, useState, useMemo } from "react";
-import { z } from "zod";
-import axios, { AxiosError } from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import axios from "axios";
 import { Loader2, UserPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import React, { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 import api from "../api/api";
 
-// API Configuration
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+// Configuration
 const REGISTER_ENDPOINT = "/api/auth/public/register";
 
-// Zod Schema for Registration Form Validation
+// Zod Schema
 const registerFormSchema = z.object({
   username: z
     .string()
@@ -42,246 +41,147 @@ const registerFormSchema = z.object({
 });
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
-type FormErrors = Partial<Record<keyof RegisterFormData, string>>;
 
-// API Response Types
-interface ApiSuccessResponse {
-  username: string;
-  email: string;
-  password?: string; // Usually not returned for security, but matching your format
-  id?: string; // In case your API returns an ID
-}
-
-interface ApiErrorResponse {
-  message?: string;
-  error?: string;
-  errors?: Record<string, string[]> | string;
-}
-
-// Form State Management
-const FORM_INITIAL_STATE: RegisterFormData = {
-  username: "",
-  email: "",
-  password: "",
-};
-
-// Notification Messages
-const NOTIFICATIONS = {
-  success: {
-    title: "Registration successful!",
-    description: "Your account has been created successfully.",
-  },
-  validationError: {
-    title: "Please check your input",
-    description: "All fields must be filled correctly.",
-  },
-  duplicateError: {
-    title: "Registration failed",
-    description: "Username or email already exists.",
-  },
-  serverError: {
-    title: "Server error",
-    description: "Something went wrong. Please try again later.",
-  },
-  networkError: {
-    title: "Network error",
-    description: "Unable to connect to server. Please check your connection.",
-  },
-} as const;
-
-// Request interceptor for logging (optional)
-api.interceptors.request.use(
-  (config) => {
-    console.log(
-      `Making ${config.method?.toUpperCase()} request to ${config.url}`
-    );
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error: AxiosError) => {
-    console.error("API Error:", error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
-
-// API Client Class
-class RegisterApiClient {
-  static async submitRegistration(
-    formData: RegisterFormData
-  ): Promise<ApiSuccessResponse> {
-    try {
-      console.log("Sending registration data:", formData);
-      console.log("Full URL:", `${API_BASE_URL}${REGISTER_ENDPOINT}`);
-
-      const response = await api.post<ApiSuccessResponse>(
-        REGISTER_ENDPOINT,
-        formData
-      );
-
-      console.log("Registration successful:", response.data);
-      return response.data;
-    } catch (error) {
-      console.error("Registration error:", error);
-
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError<ApiErrorResponse>;
-
-        // Handle different scenarios
-        if (axiosError.response) {
-          // Server responded with error status
-          const status = axiosError.response.status;
-          const errorData = axiosError.response.data;
-
-          console.error("Server error response:", status, errorData);
-
-          switch (status) {
-            case 400:
-              throw new Error("VALIDATION_ERROR", { cause: errorData });
-            case 409:
-              throw new Error("DUPLICATE_ERROR", { cause: errorData });
-            case 422:
-              throw new Error("FIELD_VALIDATION_ERROR", { cause: errorData });
-            case 500:
-              throw new Error("SERVER_ERROR", { cause: errorData });
-            default:
-              throw new Error("API_ERROR", { cause: errorData });
-          }
-        } else if (axiosError.request) {
-          // Network error - no response received
-          console.error("Network error - no response:", axiosError.request);
-          console.error("Possible causes: CORS, server not running, wrong URL");
-          throw new Error("NETWORK_ERROR");
-        } else {
-          // Request setup error
-          console.error("Request setup error:", axiosError.message);
-          throw new Error("REQUEST_SETUP_ERROR");
-        }
-      }
-
-      // Re-throw non-axios errors
-      throw error;
-    }
-  }
-}
-
-// Form Field Configuration
-interface FormFieldConfig {
-  id: string;
-  name: keyof RegisterFormData;
-  label: string;
-  type: string;
-  placeholder: string;
-}
-
-const FORM_FIELDS: FormFieldConfig[] = [
+// Form field configuration
+const formFieldsConfig = [
   {
-    id: "username",
-    name: "username",
+    name: "username" as keyof RegisterFormData,
     label: "Username",
     type: "text",
     placeholder: "Enter your username",
   },
   {
-    id: "email",
-    name: "email",
+    name: "email" as keyof RegisterFormData,
     label: "Email",
     type: "email",
     placeholder: "Enter your email address",
   },
   {
-    id: "password",
-    name: "password",
+    name: "password" as keyof RegisterFormData,
     label: "Password",
     type: "password",
     placeholder: "Enter your password",
   },
 ];
 
+// Simplified error types
+const API_ERRORS = {
+  409: "Username or email already exists.",
+  422: "Please check your input fields.",
+  500: "Something went wrong. Please try again later.",
+  NETWORK: "Unable to connect to server. Please check your connection.",
+} as const;
+
+// Unified validation function
+const validateField = (fieldName: keyof RegisterFormData, value: string) => {
+  try {
+    registerFormSchema.shape[fieldName].parse(value);
+    return null;
+  } catch (error) {
+    return error instanceof z.ZodError ? error.issues[0]?.message : null;
+  }
+};
+
+// Unified error handler
+const handleError = (
+  error: unknown,
+  setErrors: (errors: Partial<RegisterFormData>) => void
+) => {
+  if (error instanceof z.ZodError) {
+    // Handle validation errors
+    const fieldErrors: Partial<RegisterFormData> = {};
+    error.issues.forEach((issue) => {
+      if (issue.path.length > 0) {
+        fieldErrors[issue.path[0] as keyof RegisterFormData] = issue.message;
+      }
+    });
+    setErrors(fieldErrors);
+    toast.error("Validation Error", {
+      description: "Please check your input.",
+    });
+    return;
+  }
+
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const apiErrors = error.response?.data?.errors;
+
+    // Handle field-specific API errors
+    if (status === 422 && apiErrors) {
+      const serverErrors: Partial<RegisterFormData> = {};
+      Object.entries(apiErrors).forEach(([field, messages]) => {
+        serverErrors[field as keyof RegisterFormData] = (
+          messages as string[]
+        )[0];
+      });
+      setErrors(serverErrors);
+    }
+
+    // Show appropriate toast message
+    const message =
+      status && status in API_ERRORS
+        ? API_ERRORS[status as keyof typeof API_ERRORS]
+        : !error.response
+        ? API_ERRORS.NETWORK
+        : API_ERRORS[500];
+
+    toast.error("Registration Failed", { description: message });
+    return;
+  }
+
+  // Fallback error
+  toast.error("Error", { description: API_ERRORS[500] });
+};
+
+// Simplified API call
+const registerUser = async (formData: RegisterFormData) => {
+  const response = await api.post(REGISTER_ENDPOINT, formData);
+  return response.data;
+};
+
 // Form Field Component
 const FormField = ({
-  id,
-  name,
-  label,
-  type,
-  placeholder,
+  config,
   value,
   onChange,
   error,
 }: {
-  id: string;
-  name: string;
-  label: string;
-  type: string;
-  placeholder: string;
+  config: (typeof formFieldsConfig)[0];
   value: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   error?: string;
-}) => {
-  const hasError = Boolean(error);
-
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id} className="text-sm font-medium text-foreground">
-        {label}
-        <span className="text-destructive ml-1">*</span>
-      </Label>
-
-      <Input
-        id={id}
-        name={name}
-        type={type}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={`${hasError ? "border-red-500 focus:border-red-500" : ""}`}
-        aria-invalid={hasError}
-        aria-describedby={hasError ? `${id}-error` : undefined}
-      />
-
-      {hasError && (
-        <p id={`${id}-error`} className="text-xs text-red-500" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-};
-
-// Submit Button Component
-const SubmitButton = ({
-  isSubmitting,
-  hasErrors,
-}: {
-  isSubmitting: boolean;
-  hasErrors: boolean;
 }) => (
-  <Button type="submit" disabled={isSubmitting || hasErrors} className="w-full">
-    {isSubmitting ? (
-      <>
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        Creating Account...
-      </>
-    ) : (
-      <>
-        <UserPlus className="w-4 h-4 mr-2" />
-        Create Account
-      </>
-    )}
-  </Button>
+  <div className="space-y-2">
+    <Label
+      htmlFor={config.name}
+      className="text-sm font-medium text-foreground"
+    >
+      {config.label}
+      <span className="text-destructive ml-1">*</span>
+    </Label>
+    <Input
+      id={config.name}
+      name={config.name}
+      type={config.type}
+      value={value}
+      onChange={onChange}
+      placeholder={config.placeholder}
+      className={error ? "border-red-500 focus:border-red-500" : ""}
+      aria-invalid={!!error}
+    />
+    {error && <p className="text-xs text-red-500">{error}</p>}
+  </div>
 );
 
-// Custom Hook for Form Management
+// Custom Hook
 const useRegisterForm = () => {
-  const [formData, setFormData] =
-    useState<RegisterFormData>(FORM_INITIAL_STATE);
-  const [errors, setErrors] = useState<FormErrors>({});
+  const router = useRouter();
+  const [formData, setFormData] = useState<RegisterFormData>({
+    username: "",
+    email: "",
+    password: "",
+  });
+  const [errors, setErrors] = useState<Partial<RegisterFormData>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleFieldChange = useCallback(
@@ -291,110 +191,42 @@ const useRegisterForm = () => {
 
       setFormData((prev) => ({ ...prev, [fieldName]: value }));
 
-      // Real-time validation for individual field
-      try {
-        const fieldSchema = registerFormSchema.shape[fieldName];
-        fieldSchema.parse(value);
-        setErrors((prev) => ({ ...prev, [fieldName]: undefined }));
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          setErrors((prev) => ({
-            ...prev,
-            [fieldName]: error.issues[0]?.message,
-          }));
-        }
-      }
+      // Real-time validation
+      const fieldError = validateField(fieldName, value);
+      setErrors((prev) => ({ ...prev, [fieldName]: fieldError }));
     },
     []
   );
-
-  const resetForm = useCallback(() => {
-    setFormData(FORM_INITIAL_STATE);
-    setErrors({});
-  }, []);
 
   const submitForm = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
 
       try {
-        // Validate entire form with Zod
         const validatedData = registerFormSchema.parse(formData);
         setErrors({});
-
         setIsSubmitting(true);
 
-        const response = await RegisterApiClient.submitRegistration(
-          validatedData
-        );
+        const response = await registerUser(validatedData);
 
-        resetForm();
-        toast.success(NOTIFICATIONS.success.title, {
+        // Reset form and show success
+        setFormData({ username: "", email: "", password: "" });
+        toast.success("Registration Successful!", {
           description: `Welcome ${response.username}! Your account has been created.`,
         });
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          // Handle Zod validation errors
-          const fieldErrors: FormErrors = {};
-          error.issues.forEach((issue: z.ZodIssue) => {
-            if (issue.path.length > 0) {
-              const fieldName = issue.path[0] as keyof RegisterFormData;
-              fieldErrors[fieldName] = issue.message;
-            }
-          });
-          setErrors(fieldErrors);
-          toast.error(NOTIFICATIONS.validationError.title, {
-            description: NOTIFICATIONS.validationError.description,
-          });
-        } else if (error instanceof Error) {
-          // Handle API errors
-          console.error("Registration failed:", error);
 
-          switch (error.message) {
-            case "DUPLICATE_ERROR":
-              toast.error(NOTIFICATIONS.duplicateError.title, {
-                description: NOTIFICATIONS.duplicateError.description,
-              });
-              break;
-            case "VALIDATION_ERROR":
-            case "FIELD_VALIDATION_ERROR":
-              // Handle server-side validation errors
-              const apiErrorData = (error.cause as ApiErrorResponse)?.errors;
-              if (apiErrorData) {
-                const serverErrors: FormErrors = {};
-                Object.entries(apiErrorData).forEach(([field, messages]) => {
-                  if (messages.length > 0) {
-                    serverErrors[field as keyof RegisterFormData] = messages[0];
-                  }
-                });
-                setErrors(serverErrors);
-              }
-              toast.error(NOTIFICATIONS.validationError.title, {
-                description:
-                  (error.cause as ApiErrorResponse)?.message ||
-                  NOTIFICATIONS.validationError.description,
-              });
-              break;
-            case "NETWORK_ERROR":
-              toast.error(NOTIFICATIONS.networkError.title, {
-                description: NOTIFICATIONS.networkError.description,
-              });
-              break;
-            default:
-              toast.error(NOTIFICATIONS.serverError.title, {
-                description: NOTIFICATIONS.serverError.description,
-              });
-          }
-        }
+        setTimeout(() => router.push("/login"), 100);
+      } catch (error) {
+        handleError(error, setErrors);
       } finally {
         setIsSubmitting(false);
       }
     },
-    [formData, resetForm]
+    [formData, router]
   );
 
   const hasErrors = useMemo(
-    () => Object.values(errors).some((error) => Boolean(error)),
+    () => Object.values(errors).some(Boolean),
     [errors]
   );
 
@@ -408,7 +240,7 @@ const useRegisterForm = () => {
   };
 };
 
-// Main Registration Page Component
+// Main Component
 const RegisterPage = () => {
   const {
     formData,
@@ -430,18 +262,33 @@ const RegisterPage = () => {
         </div>
 
         <form onSubmit={submitForm} className="space-y-6">
-          {FORM_FIELDS.map((field) => (
+          {formFieldsConfig.map((config) => (
             <FormField
-              key={field.id}
-              {...field}
-              name={field.name}
-              value={formData[field.name]}
+              key={config.name}
+              config={config}
+              value={formData[config.name]}
               onChange={handleFieldChange}
-              error={errors[field.name]}
+              error={errors[config.name]}
             />
           ))}
 
-          <SubmitButton isSubmitting={isSubmitting} hasErrors={hasErrors} />
+          <Button
+            type="submit"
+            disabled={isSubmitting || hasErrors}
+            className="w-full"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                Creating Account...
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Create Account
+              </>
+            )}
+          </Button>
         </form>
 
         <div className="text-center text-sm text-muted-foreground">
