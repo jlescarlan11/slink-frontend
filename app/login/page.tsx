@@ -1,18 +1,17 @@
 // pages/LoginPage.tsx
 "use client";
-import React, { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { z } from "zod";
-import { LogIn } from "lucide-react";
-import api from "../api/api";
-import { AuthLayout } from "@/components/auth/AuthLayout";
-import { FormField } from "@/components/auth/FormField";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthFooter } from "@/components/auth/AuthFooter";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { FormField } from "@/components/auth/FormField";
+import { useAuth } from "@/contexts/AuthContext";
 import { useFormValidation } from "@/hooks/useFormValidation";
 import { handleAuthError } from "@/utils/errorHandlers";
-import { SecureTokenStorage } from "@/utils/tokenStorage";
+import { LogIn } from "lucide-react";
+import React, { useCallback, useState } from "react";
+import { toast } from "sonner";
+import { z } from "zod";
+import api from "../api/api";
 
 const loginFormSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(50),
@@ -38,7 +37,7 @@ const formFields = [
 ] as const;
 
 const LoginPage = () => {
-  const router = useRouter();
+  const { login } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -53,39 +52,50 @@ const LoginPage = () => {
     password: "",
   });
 
+  // Updated LoginPage.tsx - modified handleSubmit function
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-
       try {
         const validatedData = loginFormSchema.parse(formData);
         setIsSubmitting(true);
-
         const response = await api.post(
           "/api/auth/public/login",
           validatedData
         );
 
-        // Handle token storage (extract SecureTokenStorage logic)
-        const tokenStorage = SecureTokenStorage.getInstance();
-        const { accessToken, refreshToken, expiresIn } = response.data;
-        tokenStorage.setTokens(accessToken, refreshToken, expiresIn);
+        // Handle the actual API response structure
+        const { token } = response.data;
+        
+        // Create user data since backend doesn't provide it
+        const user = {
+          id: 'temp-id', // You might want to get this from the backend later
+          username: validatedData.username
+        };
+
+        // Create tokens object with the expected structure
+        const tokens = {
+          accessToken: token,
+          refreshToken: token, // Keeping for interface compatibility
+          expiresIn: 3600 // Keeping for interface compatibility
+        };
+
+        // Use the auth context login method
+        login(tokens, user);
 
         resetForm();
         toast.success("Login Successful!", {
-          description: `Welcome, ${
-            response.data?.username || validatedData.username
-          }!`,
+          description: `Welcome, ${user.username}!`,
         });
 
-        router.push("/");
+        // AuthContext will handle the redirect
       } catch (error) {
         handleAuthError(error, setErrors, "Login Failed");
       } finally {
         setIsSubmitting(false);
       }
     },
-    [formData, router, resetForm, setErrors]
+    [formData, resetForm, setErrors, login]
   );
 
   const isFormValid =
