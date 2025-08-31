@@ -1,20 +1,14 @@
-// Enhanced form validation hook with availability checking
-// hooks/useEnhancedFormValidation.ts
+// Enhanced form validation hook
+// hooks/useFormValidation.ts
 import { useCallback, useState } from "react";
 import { z } from "zod";
-import { useAvailabilityCheck } from "./useAvailabilityCheck";
 
 export const useFormValidation = <T extends Record<string, string>>(
   schema: z.ZodSchema<T>,
-  initialData: T,
-  availabilityFields?: (keyof T)[]
+  initialData: T
 ) => {
   const [formData, setFormData] = useState<T>(initialData);
   const [errors, setErrors] = useState<Partial<Record<keyof T, string>>>({});
-  const [availabilityErrors, setAvailabilityErrors] = useState<
-    Partial<Record<keyof T, string>>
-  >({});
-  const { debouncedCheck } = useAvailabilityCheck();
 
   const validateField = useCallback(
     (fieldName: keyof T, value: string) => {
@@ -52,29 +46,8 @@ export const useFormValidation = <T extends Record<string, string>>(
       // Validate field format
       const fieldError = validateField(fieldName, value);
       setErrors((prev) => ({ ...prev, [fieldName]: fieldError || undefined }));
-
-      // Check availability for specific fields
-      if (
-        availabilityFields?.includes(fieldName) &&
-        !fieldError &&
-        value.length >= 3
-      ) {
-        // Clear previous availability error
-        setAvailabilityErrors((prev) => ({ ...prev, [fieldName]: undefined }));
-
-        // Debounced availability check
-        debouncedCheck(fieldName as "username" | "email", value, (error) => {
-          setAvailabilityErrors((prev) => ({
-            ...prev,
-            [fieldName]: error || undefined,
-          }));
-        });
-      } else if (availabilityFields?.includes(fieldName)) {
-        // Clear availability error if field is invalid or too short
-        setAvailabilityErrors((prev) => ({ ...prev, [fieldName]: undefined }));
-      }
     },
-    [validateField, availabilityFields, debouncedCheck]
+    [validateField]
   );
 
   const validateForm = useCallback(() => {
@@ -100,27 +73,14 @@ export const useFormValidation = <T extends Record<string, string>>(
   const resetForm = useCallback(() => {
     setFormData(initialData);
     setErrors({});
-    setAvailabilityErrors({});
   }, [initialData]);
 
   const hasErrors = Object.values(errors).some(Boolean);
-  const hasAvailabilityErrors = Object.values(availabilityErrors).some(Boolean);
-  const hasAnyErrors = hasErrors || hasAvailabilityErrors;
-
-  // Combine errors for display
-  const combinedErrors: Partial<Record<keyof T, string>> = {
-    ...errors,
-    ...availabilityErrors,
-  };
 
   return {
     formData,
-    errors: combinedErrors,
-    validationErrors: errors,
-    availabilityErrors,
-    hasErrors: hasAnyErrors,
-    hasValidationErrors: hasErrors,
-    hasAvailabilityErrors,
+    errors,
+    hasErrors,
     setFormData,
     setErrors,
     handleFieldChange,

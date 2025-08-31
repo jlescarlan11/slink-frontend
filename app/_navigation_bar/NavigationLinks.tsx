@@ -4,11 +4,10 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut, LogIn } from "lucide-react";
+import { getNavigationItems, ROUTES } from "@/lib/config/routes";
 
-const pages = [
-  ["", "Home"],
-  ["about", "About"],
-];
+// Use centralized navigation configuration
+const pages = getNavigationItems();
 
 const NavigationLinks = ({ closeNav }: { closeNav: () => void }) => {
   const { isAuthenticated, user, logout, isLoading } = useAuth();
@@ -22,11 +21,11 @@ const NavigationLinks = ({ closeNav }: { closeNav: () => void }) => {
 
   return (
     <>
-      {pages.map(([pageLink, label]) => (
+      {pages.map(({ path, label }) => (
         <Link
-          key={pageLink}
+          key={path}
           onClick={() => closeNav()}
-          href={`/${pageLink}`}
+          href={`/${path}`}
           className="group flex flex-col items-center gap-1 py-2"
         >
           <span className="navigation-text">{label}</span>
@@ -38,9 +37,6 @@ const NavigationLinks = ({ closeNav }: { closeNav: () => void }) => {
         <>
           {isAuthenticated ? (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                Welcome, {user?.username}!
-              </span>
               <Button
                 size="lg"
                 variant="outline"
@@ -52,7 +48,7 @@ const NavigationLinks = ({ closeNav }: { closeNav: () => void }) => {
               </Button>
             </div>
           ) : (
-            <Link href="/login" onClick={() => closeNav()}>
+            <Link href={ROUTES.AUTH.LOGIN} onClick={() => closeNav()}>
               <Button
                 size="lg"
                 variant="outline"

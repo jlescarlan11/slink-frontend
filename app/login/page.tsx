@@ -10,31 +10,15 @@ import { handleAuthError } from "@/utils/errorHandlers";
 import { LogIn } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { z } from "zod";
 import api from "../api/api";
+import { loginFormSchema, LoginFormData } from "@/lib/schemas/authSchemas";
+import { authFormFields } from "@/lib/config/formFields";
+import { handleLoginResponse, createTokensObject } from "@/lib/api/responseHandlers";
+import { ERROR_MESSAGES } from "@/lib/constants/errorMessages";
+import { ROUTES } from "@/lib/config/routes";
 
-const loginFormSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters").max(50),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(128),
-});
-
-const formFields = [
-  {
-    name: "username",
-    label: "Username",
-    type: "text",
-    placeholder: "Enter your username",
-  },
-  {
-    name: "password",
-    label: "Password",
-    type: "password",
-    placeholder: "Enter your password",
-  },
-] as const;
+// Use shared form fields configuration
+const formFields = authFormFields.login;
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -50,7 +34,7 @@ const LoginPage = () => {
   } = useFormValidation(loginFormSchema, {
     username: "",
     password: "",
-  });
+  } as LoginFormData);
 
   // Updated LoginPage.tsx - modified handleSubmit function
   const handleSubmit = useCallback(
@@ -60,36 +44,26 @@ const LoginPage = () => {
         const validatedData = loginFormSchema.parse(formData);
         setIsSubmitting(true);
         const response = await api.post(
-          "/api/auth/public/login",
+          ROUTES.API.AUTH.LOGIN,
           validatedData
         );
 
-        // Handle the actual API response structure
-        const { token } = response.data;
-        
-        // Create user data since backend doesn't provide it
-        const user = {
-          id: 'temp-id', // You might want to get this from the backend later
-          username: validatedData.username
-        };
-
-        // Create tokens object with the expected structure
-        const tokens = {
-          accessToken: token,
-          refreshToken: token, // Keeping for interface compatibility
-          expiresIn: 3600 // Keeping for interface compatibility
-        };
+        // Use shared response handler
+        const { token, user } = handleLoginResponse(response);
+        const tokens = createTokensObject(token);
 
         // Use the auth context login method
         login(tokens, user);
 
         resetForm();
-        toast.success("Login Successful!", {
+        toast.success(ERROR_MESSAGES.LOGIN_SUCCESS, {
           description: `Welcome, ${user.username}!`,
         });
 
         // AuthContext will handle the redirect
       } catch (error) {
+        // Use the standard error handling which will show toast for most errors
+        // and only set field errors for validation issues
         handleAuthError(error, setErrors, "Login Failed");
       } finally {
         setIsSubmitting(false);

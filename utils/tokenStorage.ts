@@ -17,7 +17,7 @@ export class SecureTokenStorage {
     try {
       const tokenData = { token: accessToken };
       sessionStorage.setItem(this.storageKey, JSON.stringify(tokenData));
-    } catch (error) {
+    } catch {
       // Silent fail for storage errors
     }
   }
@@ -34,7 +34,7 @@ export class SecureTokenStorage {
       const data = JSON.parse(stored);
       this.token = data.token;
       return this.token;
-    } catch (error) {
+    } catch {
       this.clearTokens();
       return null;
     }
@@ -45,7 +45,7 @@ export class SecureTokenStorage {
 
     try {
       sessionStorage.removeItem(this.storageKey);
-    } catch (error) {
+    } catch {
       // Silent fail for storage errors
     }
   }
