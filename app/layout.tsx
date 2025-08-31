@@ -6,12 +6,14 @@ import Footer from "./Footer";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 
+// Configure Noto Sans font - matches the CSS variable used in globals.css
 const notoSans = Noto_Sans({
   variable: "--font-noto-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  weight: ["300", "400", "500", "700"], // Added font-light (300) used in your CSS
 });
 
+// App metadata configuration
 export const metadata: Metadata = {
   title: "Slink",
   description: "Slit your link",
@@ -31,7 +33,7 @@ export default function RootLayout({
         <AuthProvider>
           <NavigationBar />
           <main className="flex-1 web-layout">{children}</main>
-          <Footer></Footer>
+          <Footer />
         </AuthProvider>
       </body>
     </html>

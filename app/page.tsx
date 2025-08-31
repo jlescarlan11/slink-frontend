@@ -123,7 +123,7 @@ const Home = () => {
   ];
 
   return (
-    <div className="section-spacing">
+    <div className="">
       {/* Hero Section */}
       <motion.div
         initial={{ opacity: 0, y: -80 }}

@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Ensure state is updated before redirect
       setTimeout(() => {
         if (isCurrentRoutePublic) {
-          router.push(ROUTES.AUTH.HOME);
+          router.push(ROUTES.AUTH.DASHBOARD);
         }
       }, 150); // Increased delay to ensure state update
     },
