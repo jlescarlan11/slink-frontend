@@ -1,4 +1,3 @@
-// contexts/AuthContext.tsx
 "use client";
 import React, {
   createContext,
@@ -33,20 +32,53 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Use centralized route configuration
-
 interface AuthProviderProps {
   children: ReactNode;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Start with true
   const router = useRouter();
   const pathname = usePathname();
 
   // Check if current route is public using centralized function
   const isCurrentRoutePublic = isPublicRoute(pathname);
+
+  // Initialize auth state on mount
+  useEffect(() => {
+    const initializeAuth = async () => {
+      setIsLoading(true);
+      const tokenStorage = SecureTokenStorage.getInstance();
+      const token = tokenStorage.getToken();
+
+      if (token) {
+        // TODO: Validate token with your API and get user data
+        // For now, we'll assume token is valid if it exists
+        // You should replace this with actual API validation
+        try {
+          // Example API call to validate token and get user:
+          // const response = await fetch('/api/auth/validate', {
+          //   headers: { Authorization: `Bearer ${token}` }
+          // });
+          // const userData = await response.json();
+          // setUser(userData);
+
+          // Temporary: Set a dummy user if token exists
+          // Remove this and implement proper token validation
+          setUser({ id: "temp", username: "temp_user" });
+        } catch {
+          // Token is invalid, clear it
+          tokenStorage.clearTokens();
+          setUser(null);
+        }
+      }
+
+      setIsLoading(false);
+    };
+
+    initializeAuth();
+  }, []);
 
   const login = useCallback(
     (
@@ -59,14 +91,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Set user state immediately
       setUser(userData);
 
-      // Ensure state is updated before redirect
+      // Redirect to dashboard after login
       setTimeout(() => {
-        if (isCurrentRoutePublic) {
-          router.push(ROUTES.AUTH.DASHBOARD);
-        }
-      }, 150); // Increased delay to ensure state update
+        router.push(ROUTES.AUTH.DASHBOARD);
+      }, 100);
     },
-    [router, isCurrentRoutePublic]
+    [router]
   );
 
   const logout = useCallback(() => {
@@ -77,18 +107,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     toast.success(ERROR_MESSAGES.LOGOUT_SUCCESS);
   }, [router]);
 
-  // Simplified redirect logic - only redirect to login when not authenticated
+  // Handle route protection
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) return; // Don't redirect while loading
 
-    const tokenStorage = SecureTokenStorage.getInstance();
-    const hasToken = !!tokenStorage.getToken();
+    const isAuthenticated = !!user;
 
-    // Only redirect to login if no token and trying to access protected route
-    if (!hasToken && !isCurrentRoutePublic) {
+    // Redirect logic
+    if (!isAuthenticated && !isCurrentRoutePublic) {
+      // User is not authenticated and trying to access protected route
       router.push(ROUTES.AUTH.LOGIN);
+    } else if (
+      isAuthenticated &&
+      (pathname === ROUTES.AUTH.LOGIN || pathname === ROUTES.AUTH.REGISTER)
+    ) {
+      // User is authenticated but on login/register page
+      router.push(ROUTES.AUTH.DASHBOARD);
     }
-  }, [isLoading, pathname, router, isCurrentRoutePublic]);
+  }, [isLoading, user, pathname, router, isCurrentRoutePublic]);
 
   const value: AuthContextType = {
     user,

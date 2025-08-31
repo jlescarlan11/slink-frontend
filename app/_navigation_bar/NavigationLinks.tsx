@@ -10,7 +10,7 @@ import { getNavigationItems, ROUTES } from "@/lib/config/routes";
 const pages = getNavigationItems();
 
 const NavigationLinks = ({ closeNav }: { closeNav: () => void }) => {
-  const { isAuthenticated, user, logout, isLoading } = useAuth();
+  const { isAuthenticated, logout, isLoading } = useAuth();
 
   const handleAuthAction = () => {
     if (isAuthenticated) {

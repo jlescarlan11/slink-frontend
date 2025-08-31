@@ -4,7 +4,7 @@ type PublicRoutePath = (typeof ROUTES.PUBLIC)[number];
 // Centralized route configuration
 export const ROUTES = {
   // Public routes that don't require authentication
-  PUBLIC: ["/", "/about", "/login", "/register", "/forgot-password"] as const,
+  PUBLIC: ["/about", "/login", "/register", "/forgot-password"] as const,
 
   // Main navigation routes
   NAVIGATION: [
