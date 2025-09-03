@@ -11,7 +11,10 @@ import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthFooter } from "@/components/auth/AuthFooter";
 import { useFormValidation } from "@/hooks/useFormValidation";
 import { handleAuthError } from "@/utils/errorHandlers";
-import { registerFormSchema, RegisterFormData } from "@/lib/schemas/authSchemas";
+import {
+  registerFormSchema,
+  RegisterFormData,
+} from "@/lib/schemas/authSchemas";
 import { authFormFields } from "@/lib/config/formFields";
 import { ERROR_MESSAGES } from "@/lib/constants/errorMessages";
 import { ROUTES } from "@/lib/config/routes";

@@ -41,8 +41,15 @@ export const isPublicRoute = (pathname: string): boolean => {
     return true;
   }
 
-  // Add any dynamic route patterns here if needed
-  // Example: return pathname.startsWith('/public/') || pathname.startsWith('/blog/');
+  if (pathname === "/dashboard") {
+    return false;
+  }
+
+  // Handle dynamic route /[url]
+  // Example: match any one-level route like /something
+  if (/^\/[^/]+$/.test(pathname)) {
+    return true;
+  }
 
   return false;
 };
