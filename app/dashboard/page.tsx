@@ -51,7 +51,7 @@ interface UrlData {
 }
 
 // Constants
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const API_BASE_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/urls`;
 
 const DashboardPage = () => {
   // Core state
