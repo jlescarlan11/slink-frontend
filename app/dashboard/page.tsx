@@ -41,11 +41,6 @@ interface ClickEventDTO {
   count: number;
 }
 
-interface ShortenUrlResponse {
-  shortUrl: string;
-  originalUrl: string;
-}
-
 interface UrlData {
   id: number;
   originalUrl: string;
@@ -55,29 +50,13 @@ interface UrlData {
   username: string;
 }
 
-interface AnalyticsState {
-  [key: string]: ClickEventDTO[];
-}
-
-interface LoadingState {
-  [key: string]: boolean;
-}
-
-interface ExpandedState {
-  [key: string]: boolean;
-}
-
-// Add new interface for copy states
-interface CopiedState {
-  [key: string]: boolean;
-}
-
 // Constants
 const API_BASE_URL = "http://localhost:8080/api/urls";
 
 const DashboardPage = () => {
-  // Graph data state
+  // Core state
   const [graphData, setGraphData] = useState<ClickEventDTO[]>([]);
+  const [urlData, setUrlData] = useState<UrlData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -86,55 +65,51 @@ const DashboardPage = () => {
   const [shortenLoading, setShortenLoading] = useState(false);
   const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
 
-  // URL management state
-  const [urlData, setUrlData] = useState<UrlData[]>([]);
-  const [urlsLoading, setUrlsLoading] = useState(true);
-  const [expandedAnalytics, setExpandedAnalytics] = useState<ExpandedState>({});
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsState>({});
-  const [analyticsLoading, setAnalyticsLoading] = useState<LoadingState>({});
-
-  // Add new state for tracking copied URLs
-  const [copiedUrls, setCopiedUrls] = useState<CopiedState>({});
+  // UI state
+  const [expandedAnalytics, setExpandedAnalytics] = useState<
+    Record<string, boolean>
+  >({});
+  const [analyticsData, setAnalyticsData] = useState<
+    Record<string, ClickEventDTO[]>
+  >({});
+  const [analyticsLoading, setAnalyticsLoading] = useState<
+    Record<string, boolean>
+  >({});
+  const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
 
   const { isAuthenticated, isLoading } = useAuth();
-
-  const route = useRouter();
+  const router = useRouter();
 
   // Helper functions
-  const getAuthHeaders = () => {
+  const getAuthHeaders = useCallback(() => {
     const token = SecureTokenStorage.getInstance().getToken();
     if (!token) {
-      console.warn("No token found, redirecting to login");
-      route.push("/login");
+      router.push("/login");
       throw new Error("No authentication token");
     }
     return {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     };
-  };
+  }, [router]);
 
-  const getDateRange = () => {
+  const getDateRange = (days = 10) => {
     const today = new Date();
-    const tenDaysAgo = new Date(today);
-    tenDaysAgo.setDate(today.getDate() - 10);
+    const pastDate = new Date(today);
+    pastDate.setDate(today.getDate() - days);
 
     return {
-      startDate: tenDaysAgo.toISOString().split("T")[0],
+      startDate: pastDate.toISOString().split("T")[0],
       endDate: today.toISOString().split("T")[0],
     };
   };
 
   const getAnalyticsDateRange = () => {
-    const today = new Date();
-    const tenDaysAgo = new Date(today);
-    tenDaysAgo.setDate(today.getDate() - 10);
-
+    const { startDate, endDate } = getDateRange();
     return {
-      startDate: tenDaysAgo.toISOString().split("T")[0] + "T00:00:00",
-      endDate: today.toISOString().split("T")[0] + "T23:59:59",
+      startDate: `${startDate}T00:00:00`,
+      endDate: `${endDate}T23:59:59`,
     };
   };
 
@@ -146,86 +121,79 @@ const DashboardPage = () => {
           new Date(a.clickDate).getTime() - new Date(b.clickDate).getTime()
       );
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
 
-  const truncateUrl = (url: string, maxLength = 50) => {
-    return url.length > maxLength ? `${url.substring(0, maxLength)}...` : url;
-  };
+  const truncateUrl = (url: string, maxLength = 50) =>
+    url.length > maxLength ? `${url.substring(0, maxLength)}...` : url;
 
   const getFullShortUrl = (shortUrl: string) =>
     `${process.env.NEXT_PUBLIC_API_SUB_DOMAIN}/${shortUrl}`;
 
   // API functions
-  const fetchClickData = useCallback(async (showToast = true) => {
-    try {
+  const fetchClickData = useCallback(
+    async (showToast = true) => {
+      try {
+        setError(null);
+        const { startDate, endDate } = getDateRange();
+        const response = await axios.get(`${API_BASE_URL}/totalClicks`, {
+          params: { startDate, endDate },
+          headers: getAuthHeaders(),
+        });
+
+        setGraphData(transformApiData(response.data));
+        if (showToast) toast.success("Data refreshed successfully");
+      } catch (error) {
+        console.error("Failed to fetch click data:", error);
+        const errorMessage = "Failed to load click data";
+        setError(errorMessage);
+        setGraphData([]);
+        if (showToast) toast.error("Failed to refresh data");
+      }
+    },
+    [getAuthHeaders]
+  );
+
+  const fetchMyUrls = useCallback(
+    async (showToast = true) => {
+      try {
+        const response = await axios.get<UrlData[]>(`${API_BASE_URL}/myurls`, {
+          headers: getAuthHeaders(),
+        });
+
+        const sortedUrls = response.data.sort(
+          (a, b) =>
+            new Date(b.createdDate).getTime() -
+            new Date(a.createdDate).getTime()
+        );
+
+        setUrlData(sortedUrls);
+        if (showToast) toast.success("URLs loaded successfully");
+      } catch (error) {
+        console.error("Failed to fetch URLs:", error);
+        if (showToast) toast.error("Failed to load URLs");
+      }
+    },
+    [getAuthHeaders]
+  );
+
+  const fetchData = useCallback(
+    async (showToast = true) => {
       setLoading(true);
-      setError(null);
-
-      const { startDate, endDate } = getDateRange();
-      const response = await axios.get(`${API_BASE_URL}/totalClicks`, {
-        params: { startDate, endDate },
-        headers: getAuthHeaders(),
-      });
-
-      setGraphData(transformApiData(response.data));
-
-      if (showToast) {
-        toast.success("Data refreshed successfully", {
-          description: "Click analytics have been updated",
-        });
+      try {
+        await Promise.all([fetchClickData(showToast), fetchMyUrls(showToast)]);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      const errorMessage = "Failed to load click data";
-      setError(errorMessage);
-      setGraphData([]);
-
-      if (showToast) {
-        toast.error("Failed to refresh data", {
-          description: "Unable to fetch click analytics. Please try again.",
-        });
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchMyUrls = useCallback(async (showToast = true) => {
-    try {
-      setUrlsLoading(true);
-      const response = await axios.get<UrlData[]>(`${API_BASE_URL}/myurls`, {
-        headers: getAuthHeaders(),
-      });
-
-      // Sort URLs by creation date in descending order (newest first)
-      const sortedUrls = response.data.sort(
-        (a, b) =>
-          new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime()
-      );
-
-      setUrlData(sortedUrls);
-
-      if (showToast) {
-        toast.success("URLs loaded successfully");
-      }
-    } catch (err) {
-      console.error("Failed to fetch URLs:", err);
-      if (showToast) {
-        toast.error("Failed to load URLs", {
-          description: "Unable to fetch your shortened URLs. Please try again.",
-        });
-      }
-    } finally {
-      setUrlsLoading(false);
-    }
-  }, []);
+    },
+    [fetchClickData, fetchMyUrls]
+  );
 
   const fetchUrlAnalytics = async (shortUrl: string) => {
     try {
@@ -241,11 +209,9 @@ const DashboardPage = () => {
       );
 
       setAnalyticsData((prev) => ({ ...prev, [shortUrl]: response.data }));
-    } catch (err) {
-      console.error("Failed to fetch analytics:", err);
-      toast.error("Failed to load analytics", {
-        description: "Unable to fetch analytics data for this URL.",
-      });
+    } catch (error) {
+      console.error("Failed to fetch analytics:", error);
+      toast.error("Failed to load analytics");
     } finally {
       setAnalyticsLoading((prev) => ({ ...prev, [shortUrl]: false }));
     }
@@ -256,9 +222,7 @@ const DashboardPage = () => {
     e.preventDefault();
 
     if (!originalUrl.trim()) {
-      toast.error("Invalid URL", {
-        description: "Please enter a valid URL to shorten",
-      });
+      toast.error("Please enter a valid URL");
       return;
     }
 
@@ -266,7 +230,7 @@ const DashboardPage = () => {
       setShortenLoading(true);
       setShortenedUrl(null);
 
-      const response = await axios.post<ShortenUrlResponse>(
+      const response = await axios.post(
         `${API_BASE_URL}/shorten`,
         { originalUrl },
         { headers: getAuthHeaders() }
@@ -276,82 +240,54 @@ const DashboardPage = () => {
       setShortenedUrl(fullUrl);
       setOriginalUrl("");
 
-      toast.success("URL shortened successfully!", {
-        description: "Your short link is ready to use",
-      });
-
-      // Refresh both analytics data and URLs list
-      await Promise.all([fetchClickData(false), fetchMyUrls(false)]);
+      toast.success("URL shortened successfully!");
+      await fetchData(false);
     } catch (err) {
       const axiosError = err as AxiosError<{ message?: string }>;
       const errorMessage =
         axiosError.response?.data?.message || "Failed to shorten URL";
-
-      toast.error("Failed to shorten URL", {
-        description: errorMessage,
-      });
+      toast.error(errorMessage);
     } finally {
       setShortenLoading(false);
     }
   };
 
-  const handleDialogClose = () => {
-    setIsDialogOpen(false);
-    setShortenedUrl(null);
-    setOriginalUrl("");
-    setIsCopied(false);
-  };
-
-  // Updated copyToClipboard function with URL key parameter
-  const copyToClipboard = async (text: string, urlKey?: string) => {
+  const copyToClipboard = async (text: string, key?: string) => {
     try {
       await navigator.clipboard.writeText(text);
 
-      if (urlKey) {
-        // For URL management section
-        setCopiedUrls((prev) => ({ ...prev, [urlKey]: true }));
-        setTimeout(() => {
-          setCopiedUrls((prev) => ({ ...prev, [urlKey]: false }));
-        }, 2000);
-      } else {
-        // For dialog (original behavior)
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
+      if (key) {
+        setCopiedStates((prev) => ({ ...prev, [key]: true }));
+        setTimeout(
+          () => setCopiedStates((prev) => ({ ...prev, [key]: false })),
+          2000
+        );
       }
 
-      toast.success("Copied to clipboard!", {
-        description: "URL has been copied successfully",
-      });
+      toast.success("Copied to clipboard!");
     } catch {
       // Fallback for older browsers
       const textArea = document.createElement("textarea");
       textArea.value = text;
-      textArea.style.position = "absolute";
-      textArea.style.left = "-999999px";
+      textArea.style.cssText = "position:absolute;left:-9999px";
       document.body.appendChild(textArea);
       textArea.select();
 
       try {
         document.execCommand("copy");
-
-        if (urlKey) {
-          setCopiedUrls((prev) => ({ ...prev, [urlKey]: true }));
-          setTimeout(() => {
-            setCopiedUrls((prev) => ({ ...prev, [urlKey]: false }));
-          }, 2000);
-        } else {
-          setIsCopied(true);
-          setTimeout(() => setIsCopied(false), 2000);
+        if (key) {
+          setCopiedStates((prev) => ({ ...prev, [key]: true }));
+          setTimeout(
+            () => setCopiedStates((prev) => ({ ...prev, [key]: false })),
+            2000
+          );
         }
-
         toast.success("Copied to clipboard!");
       } catch {
-        toast.error("Failed to copy", {
-          description: "Please copy the URL manually.",
-        });
+        toast.error("Failed to copy. Please copy manually.");
+      } finally {
+        document.body.removeChild(textArea);
       }
-
-      document.body.removeChild(textArea);
     }
   };
 
@@ -362,37 +298,24 @@ const DashboardPage = () => {
       await fetchUrlAnalytics(shortUrl);
     }
 
-    setExpandedAnalytics((prev) => ({
-      ...prev,
-      [shortUrl]: !isExpanded,
-    }));
+    setExpandedAnalytics((prev) => ({ ...prev, [shortUrl]: !isExpanded }));
   };
 
-  const refreshData = () => {
-    fetchClickData();
-    fetchMyUrls();
+  const resetDialog = () => {
+    setIsDialogOpen(false);
+    setShortenedUrl(null);
+    setOriginalUrl("");
+    setCopiedStates({});
   };
 
+  // Effects
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      Promise.all([fetchClickData(false), fetchMyUrls(false)]);
+      fetchData(false);
     }
-  }, [isLoading, isAuthenticated, fetchClickData, fetchMyUrls]);
+  }, [isLoading, isAuthenticated, fetchData]);
 
   // Loading states
-  if (loading || urlsLoading) {
-    return (
-      <ProtectedRoute>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
-            <p>Loading dashboard data...</p>
-          </div>
-        </div>
-      </ProtectedRoute>
-    );
-  }
-
   if (isLoading || !isAuthenticated) {
     return (
       <ProtectedRoute>
@@ -406,13 +329,26 @@ const DashboardPage = () => {
     );
   }
 
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
+            <p>Loading dashboard data...</p>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
   if (error) {
     return (
       <ProtectedRoute>
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center space-y-4">
             <p className="text-red-600">{error}</p>
-            <Button onClick={() => fetchClickData()} variant="outline">
+            <Button onClick={() => fetchData()} variant="outline">
               Retry
             </Button>
           </div>
@@ -497,7 +433,7 @@ const DashboardPage = () => {
                           onClick={() => copyToClipboard(shortenedUrl)}
                         >
                           <Copy className="h-4 w-4 mr-1" />
-                          {isCopied ? "Copied!" : "Copy"}
+                          {copiedStates.dialog ? "Copied!" : "Copy"}
                         </Button>
                       </div>
                     </div>
@@ -509,7 +445,7 @@ const DashboardPage = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleDialogClose}
+                      onClick={resetDialog}
                     >
                       Cancel
                     </Button>
@@ -523,7 +459,7 @@ const DashboardPage = () => {
           </Dialog>
 
           <Button
-            onClick={refreshData}
+            onClick={() => fetchData()}
             variant="outline"
             size="lg"
             className="order-2 sm:order-1"
@@ -532,7 +468,7 @@ const DashboardPage = () => {
           </Button>
         </div>
 
-        {/* URL Management Section - Improved Layout */}
+        {/* URL Management Section */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -541,7 +477,7 @@ const DashboardPage = () => {
                 Manage and track your shortened links
               </p>
             </div>
-            <Badge variant="secondary" className="text-sm">
+            <Badge variant="secondary">
               {urlData.length} URL{urlData.length !== 1 ? "s" : ""}
             </Badge>
           </div>
@@ -552,8 +488,7 @@ const DashboardPage = () => {
                 <LinkIcon className="h-12 w-12 text-muted-foreground/50 mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No URLs yet</h3>
                 <p className="text-muted-foreground text-center mb-6">
-                  Create your first short URL to get started with link
-                  management
+                  Create your first short URL to get started
                 </p>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                   <DialogTrigger asChild>
@@ -569,40 +504,36 @@ const DashboardPage = () => {
             <div className="grid gap-4 md:gap-6">
               {urlData.map((url) => {
                 const fullShortUrl = getFullShortUrl(url.shortUrl);
-                const isAnalyticsExpanded = expandedAnalytics[url.shortUrl];
-                const urlAnalytics = analyticsData[url.shortUrl];
+                const isExpanded = expandedAnalytics[url.shortUrl];
+                const analytics = analyticsData[url.shortUrl];
                 const isLoadingAnalytics = analyticsLoading[url.shortUrl];
-                const isCopiedUrl = copiedUrls[url.shortUrl];
+                const isCopied = copiedStates[url.shortUrl];
 
                 return (
                   <Card
                     key={url.id}
                     className="overflow-hidden transition-all duration-200 hover:shadow-md"
                   >
-                    <CardHeader className="">
+                    <CardHeader>
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="text-sm ">
-                              <Link
-                                href={fullShortUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex font-semibold items-center gap-1 transition-colors"
-                              >
-                                {fullShortUrl}
-                                <ExternalLink className="h-4 w-4" />
-                              </Link>
-                              <div className="flex justify-start">
-                                <p
-                                  className="text-xs text-muted-foreground "
-                                  title={url.originalUrl}
-                                >
-                                  {truncateUrl(url.originalUrl, 80)}
-                                </p>
-                              </div>
-                            </CardTitle>
-                          </div>
+                          <CardTitle className="text-sm">
+                            <Link
+                              href={fullShortUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex font-semibold items-center gap-1 transition-colors"
+                            >
+                              {fullShortUrl}
+                              <ExternalLink className="h-4 w-4" />
+                            </Link>
+                            <p
+                              className="text-xs text-muted-foreground mt-1"
+                              title={url.originalUrl}
+                            >
+                              {truncateUrl(url.originalUrl, 80)}
+                            </p>
+                          </CardTitle>
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -629,7 +560,7 @@ const DashboardPage = () => {
                               className="h-8"
                             >
                               <Copy className="h-3 w-3 mr-1" />
-                              {isCopiedUrl ? "Copied!" : "Copy"}
+                              {isCopied ? "Copied!" : "Copy"}
                             </Button>
                             <Button
                               variant="outline"
@@ -639,7 +570,7 @@ const DashboardPage = () => {
                             >
                               <BarChart3 className="h-3 w-3 mr-1" />
                               Stats
-                              {isAnalyticsExpanded ? (
+                              {isExpanded ? (
                                 <ChevronUp className="h-3 w-3 ml-1" />
                               ) : (
                                 <ChevronDown className="h-3 w-3 ml-1" />
@@ -650,8 +581,7 @@ const DashboardPage = () => {
                       </div>
                     </CardHeader>
 
-                    {/* Analytics Section */}
-                    {isAnalyticsExpanded && (
+                    {isExpanded && (
                       <CardContent className="pt-0 border-t">
                         <div className="space-y-4">
                           <h4 className="font-semibold text-base flex items-center mt-8 gap-2">
@@ -662,9 +592,9 @@ const DashboardPage = () => {
                             <div className="flex items-center justify-center py-12">
                               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
                             </div>
-                          ) : urlAnalytics && urlAnalytics.length > 0 ? (
+                          ) : analytics && analytics.length > 0 ? (
                             <div className="h-64 bg-muted/30 rounded-lg p-4">
-                              <Graph graphData={urlAnalytics} />
+                              <Graph graphData={analytics} />
                             </div>
                           ) : (
                             <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-lg">

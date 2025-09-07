@@ -10,6 +10,7 @@ export const ROUTES = {
   NAVIGATION: [
     { path: "", label: "Home" },
     { path: "about", label: "About" },
+    { path: "dashboard", label: "Dashboard" },
   ] as const,
 
   // Authentication routes
