@@ -20,6 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
+import Link from "next/link";
 
 const Home = () => {
   const features = [
@@ -147,15 +148,19 @@ const Home = () => {
 
         {/* Main Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
-          <Button size="lg">
-            <Link2 className="w-5 h-5 mr-2" />
-            Shorten Link
-          </Button>
-          <div>
-            <Button size="lg" variant="outline">
-              <BarChart3 className="w-5 h-5 mr-2" />
-              Manage Links
+          <Link href="/dashboard">
+            <Button size="lg">
+              <Link2 className="w-5 h-5 mr-2" />
+              Shorten Link
             </Button>
+          </Link>
+          <div>
+            <Link href="/dashboard">
+              <Button size="lg" variant="outline">
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Manage Links
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -356,27 +361,6 @@ const Home = () => {
           ))}
         </div>
       </motion.div>
-
-      {/* CTA Section */}
-      <Card className="bg-gradient-to-r from-primary to-primary/80 border-0 shadow-lg">
-        <CardContent className="p-12 text-center text-primary-foreground space-y-6">
-          <h2>Ready to Transform Your Links?</h2>
-          <p className="!text-primary-foreground/80 max-w-2xl mx-auto">
-            Join thousands of users who trust Slink for their link management
-            needs. Start shortening, tracking, and optimizing your URLs today.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary">
-              <Link2 className="w-5 h-5 mr-2" />
-              Start Shortening
-            </Button>
-            <Button size="lg">
-              <BarChart3 className="w-5 h-5 mr-2" />
-              Manage My Links
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
